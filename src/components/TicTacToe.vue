@@ -3,9 +3,7 @@
     <h1>Tic Tac Toe</h1>
     <!-- Game grid -->
     <div class="grid my-5" :class="{ 'pointer-events-none': winner || draw }">
-      <div v-for="(value, index) in grid" :key="index" class="cell" @click="markCell(index)">
-        <span :class="value">{{ value }}</span>
-      </div>
+      <CellComponent v-for="(value, index) in grid" :key="index" :index="index" :value="value" @mark-cell="markCell" />
     </div>
     <!-- Game status -->
     <p v-if="winner" class="h2 mb-5">
@@ -20,41 +18,22 @@
 </template>
 
 <script>
+import { ref, watch, onMounted } from 'vue';
+import CellComponent from './CellComponent.vue';
+
 export default {
-  data() {
-    // Set initial data values for the game
-    return {
-      grid: Array(9).fill(''), // represents the tic-tac-toe grid
-      player: 'X', // current player, 'X' goes first
-      winner: '', // the winner of the game, if there is one
-      draw: false // whether or not the game ended in a draw
-    }
+  components: {
+    CellComponent
   },
-  created() {
-    // When the component is created, load the saved game state from localStorage (if it exists)
-    const savedGame = JSON.parse(localStorage.getItem('tictactoe'));
-    if (savedGame) {
-      this.grid = savedGame.grid;
-      this.player = savedGame.player;
-      this.checkWin(); // Check if there is a winner with the saved game state
-    }
-  },
-  methods: {
-    markCell(index) {
-      // When a cell is clicked, check if the cell is already marked and if there is no winner yet
-      if (!this.grid[index] && !this.winner) {
-        // Mark the cell with the current player's symbol ('X' or 'O')
-        this.grid.splice(index, 1, this.player);
-        // Check if there is a winner after marking the cell
-        this.checkWin();
-        // Switch to the other player's turn
-        this.player = this.player === 'X' ? 'O' : 'X';
-        // Save the current game state to localStorage
-        this.saveGame();
-      }
-    },
-    checkWin() {
-      // Check all possible winning combinations
+  setup() {
+    // Define reactive variables
+    const grid = ref(Array(9).fill(''));
+    const player = ref('X');
+    const winner = ref('');
+    const draw = ref(false);
+
+    // Check if any player won or if the game ended in a draw
+    const checkWin = () => {
       const winningCombos = [
         [0, 1, 2],
         [3, 4, 5],
@@ -65,36 +44,71 @@ export default {
         [0, 4, 8],
         [2, 4, 6]
       ];
+
       for (let i = 0; i < winningCombos.length; i++) {
-        // For each winning combination, check if the same symbol is present in all three cells
         const [a, b, c] = winningCombos[i];
-        if (this.grid[a] && this.grid[a] === this.grid[b] && this.grid[b] === this.grid[c]) {
-          // If there is a winner, set the winner and exit the loop
-          this.winner = this.grid[a];
+        if (grid.value[a] && grid.value[a] === grid.value[b] && grid.value[b] === grid.value[c]) {
+          winner.value = grid.value[a];
           break;
         }
       }
-      // If all cells are marked and there is no winner, the game is a draw
-      if (!this.grid.includes('') && !this.winner) {
-        this.draw = true;
+
+      if (!grid.value.includes('') && !winner.value) {
+        draw.value = true;
       }
-    },
-    reset() {
-      // Reset the game state to the initial values
-      this.grid = Array(9).fill('');
-      this.player = 'X';
-      this.winner = '';
-      this.draw = false;
-      // Save the current game state to localStorage
-      this.saveGame();
-    },
-    saveGame() {
-      // Save the current game state (grid and current player) to localStorage
+    };
+
+    // Mark a cell with the player's symbol and check for a win
+    const markCell = (index) => {
+      if (!grid.value[index] && !winner.value) {
+        grid.value.splice(index, 1, player.value);
+        checkWin();
+        player.value = player.value === 'X' ? 'O' : 'X';
+        saveGame();
+      }
+    };
+
+    // Reset the game to its initial state
+    const reset = () => {
+      grid.value = Array(9).fill('');
+      player.value = 'X';
+      winner.value = '';
+      draw.value = false;
+      saveGame();
+    };
+
+    // Save the current game state to localStorage
+    const saveGame = () => {
       localStorage.setItem('tictactoe', JSON.stringify({
-        grid: this.grid,
-        player: this.player
+        grid: grid.value,
+        player: player.value
       }));
-    }
+    };
+
+    // Load the saved game state from localStorage on component mount
+    onMounted(() => {
+      const savedGame = JSON.parse(localStorage.getItem('tictactoe'));
+      if (savedGame) {
+        grid.value = savedGame.grid;
+        player.value = savedGame.player;
+        checkWin();
+      }
+    });
+
+    // Save the game state whenever grid or player change
+    watch([grid, player], () => {
+      saveGame();
+    }, { deep: true });
+
+    // Expose reactive variables and functions
+    return {
+      grid,
+      player,
+      winner,
+      draw,
+      markCell,
+      reset
+    };
   }
 }
 </script>
@@ -129,23 +143,6 @@ p {
 
 .grid.pointer-events-none {
   pointer-events: none;
-}
-
-.cell {
-  width: 5rem;
-  height: 5rem;
-  margin: 0.5rem;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  font-size: 2.5rem;
-  cursor: pointer;
-  background-color: #e0e0e0;
-  transition: background-color 0.2s ease;
-}
-
-.cell:hover {
-  background-color: #ebebeb;
 }
 
 span {
